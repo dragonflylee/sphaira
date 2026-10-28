@@ -170,10 +170,31 @@ int Device::webdav_dirlist(const std::string& path, DirEntries& out) {
 
     log_write("\n[WEBDAV] XML parsed successfully\n");
 
-    auto requested_path = url_decode(path);
-    if (!requested_path.empty() && requested_path.back() == '/') {
-        requested_path.pop_back();
-    }
+    // servers return href in different forms for the same directory, eg:
+    //   /dav/foo/            (absolute path)
+    //   dav/foo/             (relative path)
+    //   http://h:1/dav/foo/  (full url)
+    // normalise to a decoded absolute path without trailing slash so they all
+    // compare equally. this is used to skip the requested directory itself,
+    // which the server always lists as its own first entry.
+    auto normalise = [](std::string p) {
+        if (const auto pos = p.find("://"); pos != std::string::npos) {
+            const auto slash = p.find('/', pos + 3);
+            p = (slash != std::string::npos) ? p.substr(slash) : std::string{};
+        }
+
+        while (!p.empty() && p.back() == '/') {
+            p.pop_back();
+        }
+
+        if (!p.empty() && p.front() != '/') {
+            p.insert(p.begin(), '/');
+        }
+
+        return p;
+    };
+
+    const auto requested_path = normalise(url_decode(build_url(path, true)));
 
     const auto responses = doc.select_nodes(XPATH_RESPONSE);
 
@@ -188,9 +209,8 @@ int Device::webdav_dirlist(const std::string& path, DirEntries& out) {
             continue;
         }
 
-        // todo: fix requested path still being displayed.
-        const auto href = url_decode(href_x.node().text().as_string());
-        if (href.empty() || href == requested_path || href == requested_path + '/') {
+        auto href = url_decode(href_x.node().text().as_string());
+        if (href.empty() || normalise(href) == requested_path) {
             continue;
         }
 
