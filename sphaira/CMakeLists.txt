@@ -775,6 +775,8 @@ target_include_directories(libnxtc PUBLIC ${libnxtc_SOURCE_DIR}/include ${zlib_i
 find_library(minizip_lib minizip REQUIRED)
 find_path(minizip_inc minizip REQUIRED)
 
+# MSYS2 pkg-config emits Windows paths (D:/...) that break FindCURL.
+set(PKG_CONFIG_ARGN "--dont-define-prefix" CACHE STRING "" FORCE)
 find_package(CURL REQUIRED)
 find_library(mbedcrypto_lib mbedcrypto REQUIRED)
 
